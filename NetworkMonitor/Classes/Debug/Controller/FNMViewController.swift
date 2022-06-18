@@ -46,3 +46,25 @@ extension FNMViewController {
         }
     }
 }
+
+extension FNMViewController {
+    
+    func dataToTemporaryFile(_ data: Data, fileName: String) -> URL? {
+        
+        do {
+            let temporaryDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory(),
+                                            isDirectory: true)
+            
+            let destinationUrl = temporaryDirectoryURL.appendingPathComponent(fileName)
+            
+            try data.write(to: destinationUrl)
+            
+            return destinationUrl
+            
+        } catch {
+            assertionFailure("Failed to create file, please advise")
+            return nil
+        }
+    }
+
+}

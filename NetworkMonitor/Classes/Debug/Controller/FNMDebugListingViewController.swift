@@ -97,8 +97,9 @@ private extension FNMDebugListingViewController {
         static let searchPlaceholderTitle = "Filter here"
         static let exportTitle = "Export"
         static let exportMime = "application/json"
-        static let exportSlimFilename = "all-requests-slim-original.json"
-        static let exportDetailedFilename = "all-requests-detailed-original.json"
+        static let exportSlimFilename = "all-requests-slim-original"
+        static let exportDetailedFilename = "all-requests-detailed-original"
+        static let jsonExtension = ".json"
         static let alertResetTitle = "Are you sure you want to reset ?"
         static let alertCancel = "Cancel"
         static let alertReset = "Reset 💪"
@@ -139,7 +140,7 @@ private extension FNMDebugListingViewController {
             self.navigationItem.rightBarButtonItems = [UIBarButtonItem(image: UIImage(systemName: Constants.exportImage),
                                                                        style: .plain,
                                                                        target: self,
-                                                                       action: #selector(self.exportViaEmail)),
+                                                                       action: #selector(self.exportViaShareSheet)),
                                                        UIBarButtonItem(image: UIImage(systemName: Constants.sortImage),
                                                                        style: .plain,
                                                                        target: self,
@@ -158,7 +159,7 @@ private extension FNMDebugListingViewController {
             self.navigationItem.rightBarButtonItems = [UIBarButtonItem(title: Constants.exportTitle,
                                                                        style: .plain,
                                                                        target: self,
-                                                                       action: #selector(self.exportViaEmail)),
+                                                                       action: #selector(self.exportViaShareSheet)),
                                                        UIBarButtonItem(title: Constants.toggleSortTitle,
                                                                        style: .plain,
                                                                        target: self,
@@ -364,67 +365,53 @@ private extension FNMDebugListingViewController {
     }
 
     @objc
-    func exportViaEmail() {
+    func exportViaShareSheet() {
+        
+        var encodedRecordsDataSlim: Data?
+        var encodedRecordsDataDetailed: Data?
 
-        if MFMailComposeViewController.canSendMail() {
+        let jsonEncoder = JSONEncoder()
+        jsonEncoder.outputFormatting = .prettyPrinted // Inefficient but the file size difference isn't significant
 
-            var encodedRecordsDataSlim: Data?
-            var encodedRecordsDataDetailed: Data?
+        do {
 
-            let jsonEncoder = JSONEncoder()
-            jsonEncoder.outputFormatting = .prettyPrinted // Inefficient but the file size difference isn't significant
+            let allDetails = self.allRecords.compactMap { return FNMRecordDetailInfo(record: $0) }
 
-            do {
+            encodedRecordsDataSlim = try jsonEncoder.encode(self.allRecords)
+            encodedRecordsDataDetailed = try jsonEncoder.encode(allDetails)
 
-                let allDetails = self.allRecords.compactMap { return FNMRecordDetailInfo(record: $0) }
+        } catch {
 
-                encodedRecordsDataSlim = try jsonEncoder.encode(self.allRecords)
-                encodedRecordsDataDetailed = try jsonEncoder.encode(allDetails)
+        }
 
-            } catch {
+        let date = Date()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd.MM.yyyy HH:mm:ss.SSS"
+        let displayName = Bundle.main.infoDictionary?[kCFBundleNameKey as String] as? String ?? ""
+        
+        let displayDate = formatter.string(from: date)
+        
+        var filesToShare = [URL]()
 
+        if let encodedRecordsDataSlim = encodedRecordsDataSlim,
+           let slimFile = self.dataToTemporaryFile(encodedRecordsDataSlim,
+                                                   fileName: "\(displayName)-\(Constants.exportSlimFilename)-\(displayDate)\(Constants.jsonExtension)") {
+            
+            filesToShare.append(slimFile)
+
+            if let encodedRecordsDataDetailed = encodedRecordsDataDetailed,
+               let detailedFile = self.dataToTemporaryFile(encodedRecordsDataDetailed,
+                                                           fileName: "\(displayName)-\(Constants.exportDetailedFilename)-\(displayDate)\(Constants.jsonExtension)") {
+                
+                filesToShare.append(detailedFile)
             }
-
-            if let encodedRecordsDataSlim = encodedRecordsDataSlim {
-
-                let date = Date()
-                let formatter = DateFormatter()
-                formatter.dateFormat = "dd.MM.yyyy HH:mm:ss.SSS"
-
-                let displayDate = formatter.string(from: date)
-                let displayName = Bundle.main.infoDictionary?[kCFBundleNameKey as String] as? String ?? ""
-
-                let mail = MFMailComposeViewController()
-                mail.mailComposeDelegate = self
-                mail.setSubject("Monitor Requests Exported at \(displayDate) for '\(displayName)'")
-
-                mail.addAttachmentData(encodedRecordsDataSlim,
-                                       mimeType: Constants.exportMime,
-                                       fileName: Constants.exportSlimFilename)
-
-                if let encodedRecordsDataDetailed = encodedRecordsDataDetailed {
-
-                    mail.addAttachmentData(encodedRecordsDataDetailed,
-                                           mimeType: Constants.exportMime,
-                                           fileName: Constants.exportDetailedFilename)
-                }
-
-                present(mail, animated: true)
-
-            } else {
-
-                assertionFailure("Failed to encode, please advise")
-            }
+                        
+            let shareSheet = UIActivityViewController(activityItems: filesToShare, applicationActivities: nil)
+            self.present(shareSheet, animated: true)
 
         } else {
 
-            let alertViewController = UIAlertController(title: Constants.alertExportTitle,
-                                                        message: nil,
-                                                        preferredStyle: .alert)
-            alertViewController.addAction(UIAlertAction(title: Constants.alertDismiss,
-                                                        style: .cancel))
-
-            self.navigationController?.present(alertViewController, animated: true)
+            assertionFailure("Failed to encode, please advise")
         }
     }
 

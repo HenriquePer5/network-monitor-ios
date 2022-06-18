@@ -109,7 +109,7 @@ private extension FNMDebugDetailViewController {
             let exportButton = UIBarButtonItem(image: UIImage(systemName: Constants.exportImage),
                                                style: .plain,
                                                target: self,
-                                               action: #selector(self.exportViaEmail))
+                                               action: #selector(self.exportViaShareSheet))
 
             self.navigationItem.rightBarButtonItems = [exportButton, copyButton]
 
@@ -118,12 +118,12 @@ private extension FNMDebugDetailViewController {
             let copyButton = UIBarButtonItem(title: Constants.copyTitle,
                                              style: .plain,
                                              target: self,
-                                             action: #selector(self.exportViaEmail))
+                                             action: #selector(self.exportViaShareSheet))
 
             let exportButton = UIBarButtonItem(title: Constants.exportTitle,
                                              style: .plain,
                                              target: self,
-                                             action: #selector(self.exportViaEmail))
+                                             action: #selector(self.exportViaShareSheet))
 
             self.navigationItem.rightBarButtonItems = [exportButton, copyButton]
         }
@@ -180,42 +180,18 @@ private extension FNMDebugDetailViewController {
 private extension FNMDebugDetailViewController {
 
     @objc
-    func exportViaEmail() {
-
-        if MFMailComposeViewController.canSendMail() {
-
-            if let encodedRecordsData = self.encodedRecordData {
-
-                let date = Date()
-                let formatter = DateFormatter()
-                formatter.dateFormat = "dd.MM.yyyy HH:mm:ss.SSS"
-
-                let displayDate = formatter.string(from: date)
-                let displayName = Bundle.main.infoDictionary?[kCFBundleNameKey as String] as? String ?? ""
-
-                let mail = MFMailComposeViewController()
-                mail.mailComposeDelegate = self
-                mail.setSubject("Monitor Request Exported at \(displayDate) for '\(displayName)'")
-                mail.addAttachmentData(encodedRecordsData,
-                                       mimeType: Constants.exportMime,
-                                       fileName: Constants.exportFilename)
-
-                present(mail, animated: true)
-
-            } else {
-
-                assertionFailure("Failed to encode, please advise")
-            }
-
+    func exportViaShareSheet() {
+        
+        if let encodedRecordsData = self.encodedRecordData,
+           let fileToShare = dataToTemporaryFile(encodedRecordsData,
+                                                 fileName: Constants.exportFilename) {
+            
+            let shareSheet = UIActivityViewController(activityItems: [fileToShare], applicationActivities: nil)
+            self.present(shareSheet, animated: true)
+            
         } else {
-
-            let alertViewController = UIAlertController(title: Constants.alertTitle,
-                                                        message: nil,
-                                                        preferredStyle: .alert)
-            alertViewController.addAction(UIAlertAction(title: Constants.alertDismiss,
-                                                        style: .cancel))
-
-            self.navigationController?.present(alertViewController, animated: true)
+            
+            assertionFailure("Failed to encode, please advise")
         }
     }
 
